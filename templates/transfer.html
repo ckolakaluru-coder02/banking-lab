@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted me-3 fs-3">&larr;</a>
+            <h2 class="text-primary fw-bold mb-0">Funds Transfer</h2>
+        </div>
+
+        <div class="card border-0 shadow rounded-4">
+            <div class="card-body p-4 p-md-5">
+                <p class="text-muted mb-4">Send money to any SecureTrust Bank user instantly.</p>
+
+                {% if message %}
+                <div class="alert {{ 'alert-success' if 'Success' in message else 'alert-danger' }} rounded-3">
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                <!-- VULNERABILITY: Form lacks CSRF anti-forgery tokens AND accepts GET parameters -->
+                <form method="POST" action="/transfer">
+                    <div class="mb-4">
+                        <label class="form-label text-secondary fw-semibold">Recipient Username</label>
+                        <div class="input-group input-group-lg shadow-sm rounded-3 overflow-hidden">
+                            <span class="input-group-text bg-white border-end-0"><span
+                                    style="font-size: 1.2rem;">👤</span></span>
+                            <input type="text" class="form-control border-start-0 ps-0 bg-white" name="to_user"
+                                placeholder="e.g. admin" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <label class="form-label text-secondary fw-semibold">Transfer Amount</label>
+                        <div class="input-group input-group-lg shadow-sm rounded-3 overflow-hidden">
+                            <span class="input-group-text bg-white border-end-0 text-success fw-bold">$</span>
+                            <input type="number" class="form-control border-start-0 ps-0 bg-white" name="amount" min="1"
+                                placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill shadow-sm">Confirm
+                        Transfer</button>
+
+                    <div class="text-center mt-4">
+                        <small class="text-muted">
+                            Transfer requests are processed immediately.
+                        </small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

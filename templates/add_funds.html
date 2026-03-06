@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted me-3 fs-3">&larr;</a>
+            <h2 class="text-success fw-bold mb-0">Add Funds</h2>
+        </div>
+
+        <div class="card border-0 shadow rounded-4">
+            <div class="card-body p-4 p-md-5">
+                <p class="text-muted mb-4">Deposit money directly into your SecureTrust Checking Account.</p>
+
+                {% if message %}
+                <div class="alert alert-danger rounded-3">
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                <!-- Form to Add Funds -->
+                <form method="POST" action="/add_funds">
+                    <div class="mb-5">
+                        <label class="form-label text-secondary fw-semibold">Deposit Amount</label>
+                        <div class="input-group input-group-lg shadow-sm rounded-3 overflow-hidden">
+                            <span class="input-group-text bg-white border-end-0 text-success fw-bold">$</span>
+                            <input type="number" class="form-control border-start-0 ps-0 bg-white" name="amount" min="1"
+                                placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-lg w-100 rounded-pill shadow-sm">Confirm
+                        Deposit</button>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

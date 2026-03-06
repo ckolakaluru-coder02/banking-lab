@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <!-- Account Summary -->
+    <div class="col-md-8">
+        <h2 class="mb-4 text-primary fw-bold">Account Overview</h2>
+
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white overflow-hidden">
+            <div class="card-header bg-primary text-white py-3 border-0">
+                <h5 class="mb-0">Checking Account</h5>
+            </div>
+            <div class="card-body p-4 text-center">
+                <p class="text-muted mb-1 text-uppercase fw-semibold" style="letter-spacing: 1px;">Available Balance</p>
+                <h1 class="display-3 fw-bold text-success mb-3">${{ "{:,.2f}".format(user.balance) }}</h1>
+                <p class="text-muted">Account Holder: <strong>{{ user.username }}</strong> &nbsp;|&nbsp; ID: #<strong>{{
+                        user.id }}</strong></p>
+            </div>
+            <div class="card-footer bg-light border-0 py-3 d-flex justify-content-around">
+                <a href="{{ url_for('transfer') }}" class="btn btn-outline-primary px-4 rounded-pill">Make a
+                    Transfer</a>
+                <a href="{{ url_for('add_funds') }}" class="btn btn-success px-4 rounded-pill">Add Funds</a>
+            </div>
+        </div>
+
+        <!-- DYNAMIC Transaction History -->
+        <h4 class="mb-3 text-secondary mt-5">Transaction History</h4>
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="list-group list-group-flush rounded-4">
+                {% for txn in transactions %}
+                <div class="list-group-item p-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0 text-dark">{{ txn.description }}</h6>
+                        <small class="text-muted">{{ txn.timestamp }}</small>
+                    </div>
+
+                    {% if txn.type == 'CREDIT' %}
+                    <span class="text-success fw-bold">+${{ "{:,.2f}".format(txn.amount) }}</span>
+                    {% else %}
+                    <span class="text-danger fw-bold">-${{ "{:,.2f}".format(txn.amount) }}</span>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="list-group-item p-4 text-center text-muted">
+                    No transactions found for this account.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

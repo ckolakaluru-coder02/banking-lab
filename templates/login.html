@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="text-center mb-4">
+            <h2 class="text-primary fw-bold">Online Banking Portal</h2>
+            <p class="text-muted">Securely manage your assets.</p>
+        </div>
+
+        <div class="card border-0 shadow-lg rounded-4">
+            <div class="card-body p-5">
+                {% if error %}
+                <div class="alert alert-danger rounded-3">{{ error }}</div>
+                {% endif %}
+
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="username" class="form-label text-secondary fw-semibold">User ID / Username</label>
+                        <input type="text" class="form-control form-control-lg bg-light" id="username" name="username"
+                            placeholder="e.g. admin" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password" class="form-label text-secondary fw-semibold">Password</label>
+                        <input type="password" class="form-control form-control-lg bg-light" id="password"
+                            name="password" required>
+                    </div>
+
+                    <!-- NEW VULNERABILITY ADDTIONAL FEATURE -->
+                    <div class="mb-4 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                        <label class="form-check-label text-muted" for="remember">Keep me logged in on this
+                            device</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill shadow-sm">Login to
+                        Account</button>
+
+                    <div class="text-center mt-3">
+                        <p class="text-muted mb-0">Don't have an account? <a href="{{ url_for('register') }}"
+                                class="text-primary fw-bold text-decoration-none">Open an Account</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
