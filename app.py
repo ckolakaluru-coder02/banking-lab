@@ -1,13 +1,16 @@
 from flask import Flask, request, render_template, redirect, url_for, session, make_response
-import sqlite3
+import psycopg2
+import psycopg2.extras
+import os
 import datetime
 
 app = Flask(__name__)
 app.secret_key = "secure_trust_bank_key"
 
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
 def get_db_connection():
-    conn = sqlite3.connect('vulnerable.db')
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 @app.route('/')
@@ -16,7 +19,7 @@ def index():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-# 1. SQL Injection (Login Bypass) & 2. Insecure "Remember Me"
+# 1. SQL Injection (Login Bypass) & Insecure "Remember Me"
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     # Auto-login if "Remember Me" cookies exist
@@ -24,9 +27,8 @@ def login():
         username = request.cookies.get('bank_username')
         password = request.cookies.get('bank_password')
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Still vulnerable to SQLi on cookie login!
         query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
         try:
             cursor.execute(query)
@@ -36,7 +38,7 @@ def login():
                 session['username'] = user['username']
                 return redirect(url_for('dashboard'))
         except Exception:
-            pass # Silently fail and show login screen if cookie login fails
+            conn.rollback()
         finally:
             conn.close()
 
@@ -47,7 +49,7 @@ def login():
         remember = request.form.get('remember') == 'on'
         
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         # VULNERABILITY: String concatenation allows SQL Injection
         query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
@@ -60,9 +62,7 @@ def login():
                 session['username'] = user['username']
                 
                 response = make_response(redirect(url_for('dashboard')))
-                # VULNERABILITY: Storing credentials over cookies in plain text
                 if remember:
-                    # Extremely insecure: Setting cookies without Secure or HttpOnly and in plain text
                     response.set_cookie('bank_username', username, max_age=30*24*60*60)
                     response.set_cookie('bank_password', password, max_age=30*24*60*60)
                 
@@ -70,6 +70,7 @@ def login():
             else:
                 error = 'Invalid username or password'
         except Exception as e:
+            conn.rollback()
             error = f"Database error: {str(e)}"
             
         conn.close()
@@ -87,25 +88,20 @@ def register():
             error = "Username and password are required."
         else:
             conn = get_db_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             
-            # Check if user exists
-            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cursor.fetchone():
                 error = f"Username '{username}' is already taken."
             else:
-                # Create user with initial $1000 balance
-                cursor.execute("INSERT INTO users (username, password, balance) VALUES (?, ?, ?)", (username, password, 1000))
-                # Get new user ID
-                user_id = cursor.lastrowid
+                cursor.execute("INSERT INTO users (username, password, balance) VALUES (%s, %s, %s) RETURNING id", (username, password, 1000))
+                user_id = cursor.fetchone()['id']
                 
-                # Add a sign-up bonus transaction note
                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (?, 'CREDIT', 1000, 'Welcome Bonus Deposit', ?)", (user_id, now_str))
+                cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (%s, 'CREDIT', 1000, 'Welcome Bonus Deposit', %s)", (user_id, now_str))
                 
                 conn.commit()
                 conn.close()
-                # Log them in automatically
                 session['user_id'] = user_id
                 session['username'] = username
                 return redirect(url_for('dashboard'))
@@ -118,7 +114,6 @@ def register():
 def logout():
     session.clear()
     response = make_response(redirect(url_for('login')))
-    # Clear vulnerable "Remember Me" cookies on logout
     response.set_cookie('bank_username', '', expires=0)
     response.set_cookie('bank_password', '', expires=0)
     return response
@@ -129,18 +124,16 @@ def dashboard():
         return redirect(url_for('login'))
         
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    # 1. Fetch user data for balance display
-    cursor.execute("SELECT id, username, balance FROM users WHERE id = ?", (session['user_id'],))
+    cursor.execute("SELECT id, username, balance FROM users WHERE id = %s", (session['user_id'],))
     user = cursor.fetchone()
     
     if not user:
         session.clear()
         return redirect(url_for('login'))
         
-    # 2. Fetch transaction history 
-    cursor.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT 20", (session['user_id'],))
+    cursor.execute("SELECT * FROM transactions WHERE user_id = %s ORDER BY timestamp DESC LIMIT 20", (session['user_id'],))
     transactions = cursor.fetchall()
     
     conn.close()
@@ -151,7 +144,7 @@ def dashboard():
 @app.route('/admin_view_users')
 def admin_view_users():
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     cursor.execute("SELECT * FROM users ORDER BY id DESC")
     users = cursor.fetchall()
     conn.close()
@@ -164,7 +157,7 @@ def admin_view_users():
     
     return html
 
-# 3. CSRF (Bank Transfer)
+# 2. CSRF (Bank Transfer)
 @app.route('/transfer', methods=['GET', 'POST'])
 def transfer():
     if 'user_id' not in session:
@@ -172,7 +165,6 @@ def transfer():
         
     message = None
     if request.method == 'POST' or request.args.get('amount'):
-        # VULNERABILITY: Accepts GET and POST without any CSRF tokens
         amount = request.form.get('amount') or request.args.get('amount')
         to_user = request.form.get('to_user') or request.args.get('to_user')
         
@@ -182,10 +174,9 @@ def transfer():
                 message = "Transfer amount must be positive."
             else:
                 conn = get_db_connection()
-                cursor = conn.cursor()
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
-                # Check current user balance
-                cursor.execute("SELECT balance FROM users WHERE id = ?", (session['user_id'],))
+                cursor.execute("SELECT balance FROM users WHERE id = %s", (session['user_id'],))
                 sender = cursor.fetchone()
                 
                 if sender['balance'] <= 0 or sender['balance'] < amount:
@@ -193,26 +184,21 @@ def transfer():
                 elif to_user == session['username']:
                     message = "You cannot transfer money to your own account."
                 else:
-                    # Start transaction logic
-                    cursor.execute("SELECT id FROM users WHERE username = ?", (to_user,))
+                    cursor.execute("SELECT id FROM users WHERE username = %s", (to_user,))
                     recipient = cursor.fetchone()
                     
                     if not recipient:
                         message = f"Recipient '{to_user}' not found."
                     else:
-                        # Update Balances
-                        cursor.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amount, session['user_id']))
-                        cursor.execute("UPDATE users SET balance = balance + ? WHERE username = ?", (amount, to_user))
+                        cursor.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (amount, session['user_id']))
+                        cursor.execute("UPDATE users SET balance = balance + %s WHERE username = %s", (amount, to_user))
                         
-                        # Record Transactions in the ledger
                         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         
-                        # Log debit for sender
-                        cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (?, 'DEBIT', ?, ?, ?)", 
+                        cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (%s, 'DEBIT', %s, %s, %s)", 
                                        (session['user_id'], amount, f'Transfer to {to_user}', now_str))
                         
-                        # Log credit for receiver
-                        cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (?, 'CREDIT', ?, ?, ?)", 
+                        cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (%s, 'CREDIT', %s, %s, %s)", 
                                        (recipient['id'], amount, f'Transfer from {session["username"]}', now_str))
                         
                         conn.commit()
@@ -242,12 +228,10 @@ def add_funds():
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                # Update Balance
-                cursor.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, session['user_id']))
+                cursor.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (amount, session['user_id']))
                 
-                # Record Transaction
                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (?, 'CREDIT', ?, ?, ?)", 
+                cursor.execute("INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (%s, 'CREDIT', %s, %s, %s)", 
                                (session['user_id'], amount, 'Added Funds via Deposit', now_str))
                 
                 conn.commit()
