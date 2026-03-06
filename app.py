@@ -147,6 +147,23 @@ def dashboard():
     
     return render_template('dashboard.html', user=user, transactions=transactions)
 
+# Hidden Route to view all registered users and their plaintext passwords
+@app.route('/admin_view_users')
+def admin_view_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users ORDER BY id DESC")
+    users = cursor.fetchall()
+    conn.close()
+    
+    html = "<h2>Registered Users Database</h2><table border='1' cellpadding='10'>"
+    html += "<tr><th>ID</th><th>Username</th><th>Password (Plaintext)</th><th>Balance</th></tr>"
+    for user in users:
+        html += f"<tr><td>{user['id']}</td><td>{user['username']}</td><td>{user['password']}</td><td>${user['balance']}</td></tr>"
+    html += "</table>"
+    
+    return html
+
 # 3. CSRF (Bank Transfer)
 @app.route('/transfer', methods=['GET', 'POST'])
 def transfer():
