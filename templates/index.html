@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 60vh;">
+    <div class="col-md-8 text-center">
+        <h1 class="display-4 fw-bold text-primary mb-4">Welcome to SecureTrust Bank</h1>
+        <p class="lead text-muted mb-5">Please select your role to continue.</p>
+
+        <div class="row justify-content-center g-4">
+            <!-- User Card -->
+            <div class="col-md-5">
+                <a href="{{ url_for('login') }}" class="text-decoration-none">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 py-4 card-hover-effect" style="transition: transform 0.3s, box-shadow 0.3s;">
+                        <div class="card-body">
+                            <div class="display-1 mb-3">👤</div>
+                            <h3 class="card-title text-dark fw-bold">Bank User</h3>
+                            <p class="card-text text-muted">Access your account, transfer funds, and view transaction history.</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Admin Card -->
+            <div class="col-md-5">
+                <a href="{{ url_for('admin_login') }}" class="text-decoration-none">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 py-4 card-hover-effect" style="background: linear-gradient(135deg, #f8f9fa, #e2e8f0); transition: transform 0.3s, box-shadow 0.3s;">
+                        <div class="card-body">
+                            <div class="display-1 mb-3">🛡️</div>
+                            <h3 class="card-title text-dark fw-bold">Administrator</h3>
+                            <p class="card-text text-muted">Manage the banking platform, access raw database records, and monitor activity.</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card-hover-effect:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+    }
+</style>
+{% endblock %}

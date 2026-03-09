@@ -1,0 +1,414 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* ===== Admin Panel Premium Styles ===== */
+    .admin-hero {
+        background: linear-gradient(135deg, #0b3d91 0%, #1a1a2e 50%, #16213e 100%);
+        border-radius: 20px;
+        padding: 40px;
+        color: white;
+        margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+    }
+    .admin-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -30%;
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .admin-hero::after {
+        content: '';
+        position: absolute;
+        bottom: -40%;
+        left: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .admin-hero h2 {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+    .admin-hero p {
+        opacity: 0.8;
+        font-size: 1rem;
+    }
+
+    /* Stat Cards */
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid rgba(0,0,0,0.04);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    }
+    .stat-card .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        margin-bottom: 14px;
+    }
+    .stat-card .stat-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #1a1a2e;
+        line-height: 1;
+    }
+    .stat-card .stat-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #94a3b8;
+        font-weight: 600;
+        margin-top: 6px;
+    }
+    .icon-users { background: linear-gradient(135deg, #6366f1, #818cf8); color: white; }
+    .icon-txn   { background: linear-gradient(135deg, #10b981, #34d399); color: white; }
+    .icon-money { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; }
+    .icon-table { background: linear-gradient(135deg, #ef4444, #f87171); color: white; }
+
+    /* Table Selector Tabs */
+    .table-selector {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .table-selector .tab-btn {
+        padding: 10px 24px;
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        background: white;
+        color: #64748b;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+    .table-selector .tab-btn:hover {
+        border-color: #6366f1;
+        color: #6366f1;
+        background: #f5f3ff;
+    }
+    .table-selector .tab-btn.active {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        color: white;
+        border-color: #6366f1;
+        box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+
+    /* Data Table */
+    .data-panel {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid rgba(0,0,0,0.04);
+        overflow: hidden;
+    }
+    .data-panel .panel-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .data-panel .panel-header h5 {
+        margin: 0;
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 1.1rem;
+    }
+    .panel-header .badge-count {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .search-box {
+        display: flex;
+        align-items: center;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 6px 14px;
+        transition: all 0.3s ease;
+    }
+    .search-box:focus-within {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+        background: white;
+    }
+    .search-box input {
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: 0.9rem;
+        padding: 4px 8px;
+        color: #334155;
+        width: 200px;
+    }
+    .search-box .search-icon { color: #94a3b8; }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .data-table thead th {
+        background: #f8fafc;
+        padding: 14px 20px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #64748b;
+        font-weight: 700;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
+        white-space: nowrap;
+    }
+    .data-table tbody tr {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .data-table tbody tr:hover {
+        background: #f5f3ff;
+    }
+    .data-table tbody td {
+        padding: 14px 20px;
+        font-size: 0.9rem;
+        color: #334155;
+        vertical-align: middle;
+    }
+    .data-table tbody td:first-child {
+        font-weight: 700;
+        color: #6366f1;
+    }
+
+    /* Type badges */
+    .type-badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .type-credit { background: #dcfce7; color: #16a34a; }
+    .type-debit  { background: #fee2e2; color: #dc2626; }
+
+    /* Password reveal */
+    .password-cell {
+        font-family: monospace;
+        background: #1e293b;
+        color: #22d3ee;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        display: inline-block;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #94a3b8;
+    }
+    .empty-state .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+    }
+
+    /* Responsive table wrapper */
+    .table-responsive-wrapper {
+        overflow-x: auto;
+    }
+
+    /* Refresh button */
+    .btn-refresh {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+    .btn-refresh:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+        color: white;
+    }
+
+    /* Fade in animation */
+    @keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+        animation: fadeSlideUp 0.5s ease-out forwards;
+    }
+    .animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
+    .animate-delay-4 { animation-delay: 0.4s; opacity: 0; }
+</style>
+
+<!-- ===== Hero Section ===== -->
+<div class="admin-hero animate-in">
+    <div style="position: relative; z-index: 1;">
+        <h2>🛡️ Database Admin Panel</h2>
+        <p class="mb-0">Real-time view of all tables and records in the SecureTrust Bank database.</p>
+    </div>
+</div>
+
+<!-- ===== Stats Cards ===== -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 animate-in animate-delay-1">
+        <div class="stat-card">
+            <div class="stat-icon icon-table">📊</div>
+            <div class="stat-value">{{ tables|length }}</div>
+            <div class="stat-label">Tables</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 animate-in animate-delay-2">
+        <div class="stat-card">
+            <div class="stat-icon icon-users">👤</div>
+            <div class="stat-value">{{ stats.total_users }}</div>
+            <div class="stat-label">Registered Users</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 animate-in animate-delay-3">
+        <div class="stat-card">
+            <div class="stat-icon icon-txn">📝</div>
+            <div class="stat-value">{{ stats.total_transactions }}</div>
+            <div class="stat-label">Transactions</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 animate-in animate-delay-4">
+        <div class="stat-card">
+            <div class="stat-icon icon-money">💰</div>
+            <div class="stat-value">${{ "{:,.0f}".format(stats.total_balance) }}</div>
+            <div class="stat-label">Total Balance</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Table Selector ===== -->
+<div class="table-selector animate-in animate-delay-4">
+    {% for table_name in tables %}
+    <a href="{{ url_for('db_admin', table=table_name) }}" 
+       class="tab-btn {% if table_name == active_table %}active{% endif %}">
+        {% if table_name == 'users' %}👤{% elif table_name == 'transactions' %}📝{% else %}📁{% endif %}
+        {{ table_name|capitalize }}
+    </a>
+    {% endfor %}
+    <a href="{{ url_for('db_admin', table=active_table) }}" class="btn-refresh ms-auto">
+        🔄 Refresh
+    </a>
+</div>
+
+<!-- ===== Data Panel ===== -->
+<div class="data-panel animate-in animate-delay-4">
+    <div class="panel-header">
+        <div class="d-flex align-items-center gap-3">
+            <h5>📋 {{ active_table|capitalize }} Table</h5>
+            <span class="badge-count">{{ rows|length }} records</span>
+        </div>
+        <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="tableSearch" placeholder="Search records..." onkeyup="filterTable()">
+        </div>
+    </div>
+
+    {% if columns %}
+    <div class="table-responsive-wrapper">
+        <table class="data-table" id="dataTable">
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    {% for col in columns %}
+                    <td>
+                        {% if col == 'password' %}
+                            <span class="password-cell">{{ row[col] }}</span>
+                        {% elif col == 'type' and row[col] %}
+                            <span class="type-badge {% if row[col] == 'CREDIT' %}type-credit{% else %}type-debit{% endif %}">
+                                {{ row[col] }}
+                            </span>
+                        {% elif col == 'balance' %}
+                            <strong>${{ "{:,.2f}".format(row[col]) }}</strong>
+                        {% elif col == 'amount' and row[col] is not none %}
+                            ${{ "{:,.2f}".format(row[col]) }}
+                        {% else %}
+                            {{ row[col] }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <h5>No Data Found</h5>
+        <p>This table is currently empty.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('tableSearch');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById('dataTable');
+    if (!table) return;
+    const rows = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].getElementsByTagName('td');
+        let match = false;
+        for (let j = 0; j < cells.length; j++) {
+            if (cells[j].textContent.toLowerCase().includes(filter)) {
+                match = true;
+                break;
+            }
+        }
+        rows[i].style.display = match ? '' : 'none';
+    }
+}
+</script>
+
+{% endblock %}

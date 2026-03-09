@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card border-0 shadow rounded-4">
+            <div class="card-header bg-dark text-white text-center py-4 rounded-top-4 border-0">
+                <h4 class="mb-0">🛡️ Admin Authenticator</h4>
+                <small class="text-white-50">Database Access Control</small>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                {% if error %}
+                <div class="alert alert-danger bg-danger text-white border-0 py-2 text-center rounded-3 mb-4">
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('admin_login') }}">
+                    <div class="mb-3">
+                        <label for="admin_username" class="form-label fw-bold text-muted small text-uppercase">Admin Username</label>
+                        <input type="text" class="form-control form-control-lg bg-light border-0" id="admin_username" name="admin_username" required placeholder="Enter admin username...">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="admin_password" class="form-label fw-bold text-muted small text-uppercase">Admin Master Password</label>
+                        <input type="password" class="form-control form-control-lg bg-light border-0" id="admin_password" name="admin_password" required placeholder="Enter admin password...">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-dark btn-lg w-100 fw-bold shadow-sm">
+                        Authenticate & Access DB
+                    </button>
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted small">
+                            &larr; Return to Dashboard
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
