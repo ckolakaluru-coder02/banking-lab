@@ -26,8 +26,12 @@ SQLITE_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bank.db')
 
 def get_db_connection():
     if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            return conn
+        except psycopg2.Error as e:
+            print(f"PostgreSQL connection error: {e}")
+            raise
     else:
         conn = sqlite3.connect(SQLITE_DB)
         conn.row_factory = sqlite3.Row
@@ -73,12 +77,64 @@ def init_sqlite_db():
     conn.close()
 
 
-# Initialize SQLite database on startup if not using PostgreSQL
+def init_postgres_db():
+    """Create tables and seed data in PostgreSQL for production."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Create users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL,
+                balance REAL DEFAULT 1000
+            )
+        ''')
+        
+        # Create transactions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                type TEXT NOT NULL,
+                amount REAL NOT NULL,
+                description TEXT,
+                timestamp TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        
+        conn.commit()
+        
+        # Check if we need to seed data
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        
+        if user_count == 0:
+            # Seed default users
+            cursor.execute("INSERT INTO users (username, password, balance) VALUES (%s, %s, %s)", 
+                          ('admin', 'SuperSecretAdminP@ssw0rd', 1500000))
+            cursor.execute("INSERT INTO users (username, password, balance) VALUES (%s, %s, %s)", 
+                          ('student', 'password123', 500))
+            cursor.execute("INSERT INTO users (username, password, balance) VALUES (%s, %s, %s)", 
+                          ('johndoe', 'secure55', 3000))
+            conn.commit()
+        
+        conn.close()
+        print("  * PostgreSQL database initialized successfully")
+    except Exception as e:
+        print(f"  * Error initializing PostgreSQL database: {e}")
+
+
+# Initialize database on startup
 if not USE_POSTGRES:
     init_sqlite_db()
     print("  * Running with SQLite (local development mode)")
     print(f"  * Database file: {SQLITE_DB}")
 else:
+    init_postgres_db()
     print("  * Running with PostgreSQL (production mode)")
 
 
