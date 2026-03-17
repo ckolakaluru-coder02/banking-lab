@@ -2,6 +2,14 @@ from flask import Flask, request, render_template, redirect, url_for, session, m
 import os
 import datetime
 import sqlite3
+import logging
+
+# Configure honeypot logger
+logging.basicConfig(
+    filename='honeypot_admin_logins.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s'
+)
 
 # Try to import psycopg2 for production (PostgreSQL)
 try:
@@ -33,7 +41,7 @@ def get_db_connection():
             print(f"PostgreSQL connection error: {e}")
             raise
     else:
-        conn = sqlite3.connect(SQLITE_DB)
+        conn = sqlite3.connect(SQLITE_DB, timeout=10.0)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -52,7 +60,7 @@ def db_execute(cursor, query, params=None):
 
 def init_sqlite_db():
     """Create tables in SQLite for local development."""
-    conn = sqlite3.connect(SQLITE_DB)
+    conn = sqlite3.connect(SQLITE_DB, timeout=10.0)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -71,6 +79,27 @@ def init_sqlite_db():
             description TEXT,
             timestamp TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS honeypot_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT,
+            method TEXT,
+            username_attempt TEXT,
+            password_attempt TEXT,
+            user_agent TEXT,
+            timestamp TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_login_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT,
+            username_attempt TEXT,
+            success BOOLEAN,
+            user_agent TEXT,
+            timestamp TEXT
         )
     ''')
     conn.commit()
@@ -103,6 +132,31 @@ def init_postgres_db():
                 description TEXT,
                 timestamp TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        
+        # Create honeypot logs table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS honeypot_logs (
+                id SERIAL PRIMARY KEY,
+                ip_address TEXT,
+                method TEXT,
+                username_attempt TEXT,
+                password_attempt TEXT,
+                user_agent TEXT,
+                timestamp TEXT
+            )
+        ''')
+        
+        # Create standard user login logs table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_login_logs (
+                id SERIAL PRIMARY KEY,
+                ip_address TEXT,
+                username_attempt TEXT,
+                success BOOLEAN,
+                user_agent TEXT,
+                timestamp TEXT
             )
         ''')
         
@@ -175,22 +229,44 @@ def login():
         password = request.form.get('password')
         remember = request.form.get('remember') == 'on'
         
+        # --- USER LOGIN LOGGING ---
+        if request.headers.getlist("X-Forwarded-For"):
+            ip_address = request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
+        elif request.headers.get("X-Real-IP"):
+            ip_address = request.headers.get("X-Real-IP")
+        else:
+            ip_address = request.remote_addr
+            
+        user_agent = request.headers.get('User-Agent', '')
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         conn = get_db_connection()
         if USE_POSTGRES:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         else:
             cursor = conn.cursor()
         
-        # VULNERABILITY: String concatenation allows SQL Injection
+        # VULNERABLE SQL QUERY (SQL Injection possible)
         query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+        
+        print(f"Executing Query: {query}")   # show query in terminal for learning
+        
         try:
             cursor.execute(query)
             user = cursor.fetchone()
+            
+            # Log the login attempt
+            success = bool(user)
+            db_execute(cursor, "INSERT INTO user_login_logs (ip_address, username_attempt, success, user_agent, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                       (ip_address, username, success, user_agent, now_str))
+            conn.commit()
             
             if user:
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 
+                cursor.close()
+                conn.close()
                 response = make_response(redirect(url_for('dashboard')))
                 if remember:
                     response.set_cookie('bank_username', username, max_age=30*24*60*60)
@@ -203,6 +279,7 @@ def login():
             conn.rollback()
             error = f"Database error: {str(e)}"
             
+        cursor.close()
         conn.close()
         
     return render_template('login.html', error=error)
@@ -238,11 +315,13 @@ def register():
                 db_execute(cursor, "INSERT INTO transactions (user_id, type, amount, description, timestamp) VALUES (%s, 'CREDIT', 1000, 'Welcome Bonus Deposit', %s)", (user_id, now_str))
                 
                 conn.commit()
+                cursor.close()
                 conn.close()
                 session['user_id'] = user_id
                 session['username'] = username
                 return redirect(url_for('dashboard'))
             
+            cursor.close()
             conn.close()
             
     return render_template('register.html', error=error)
@@ -250,7 +329,7 @@ def register():
 @app.route('/logout')
 def logout():
     session.clear()
-    response = make_response(redirect(url_for('login')))
+    response = make_response(redirect(url_for('index')))
     response.set_cookie('bank_username', '', expires=0)
     response.set_cookie('bank_password', '', expires=0)
     return response
@@ -284,20 +363,59 @@ def dashboard():
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     error = None
+    
+    # --- HONEYPOT LOGGING ---
+    # Attempt to get the real IP if the app is deployed behind a proxy/load balancer
+    if request.headers.getlist("X-Forwarded-For"):
+        ip_address = request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
+    elif request.headers.get("X-Real-IP"):
+        ip_address = request.headers.get("X-Real-IP")
+    else:
+        ip_address = request.remote_addr
+        
+    method_used = request.method
+    user_agent = request.headers.get('User-Agent', '')
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
     if request.method == 'POST':
         username = request.form.get('admin_username', '')
         password = request.form.get('admin_password', '')
+        
+        # Log POST attempt with visible credentials
+        logging.info(f"HONEYPOT ALERT: Admin Login POST | IP: {ip_address} | Username: '{username}' | Password: '{password}' | User-Agent: '{user_agent}'")
+        
+        # Log to database
+        db_execute(cursor, "INSERT INTO honeypot_logs (ip_address, method, username_attempt, password_attempt, user_agent, timestamp) VALUES (%s, %s, %s, %s, %s, %s)",
+                   (ip_address, method_used, username, password, user_agent, now_str))
+        conn.commit()
+        
         if username == 'admin46' and password == ADMIN_PASSWORD:
             session['is_admin'] = True
+            cursor.close()
+            conn.close()
             return redirect(url_for('db_admin'))
         else:
             error = 'Invalid admin credentials.'
+    else:
+        # Log GET visits to the page
+        logging.info(f"HONEYPOT ALERT: Admin Login GET (Visit) | IP: {ip_address} | User-Agent: '{user_agent}'")
+        
+        # Log to database (no credentials for GET)
+        db_execute(cursor, "INSERT INTO honeypot_logs (ip_address, method, username_attempt, password_attempt, user_agent, timestamp) VALUES (%s, %s, %s, %s, %s, %s)",
+                   (ip_address, method_used, '', '', user_agent, now_str))
+        conn.commit()
+        
+    cursor.close()
+    conn.close()
     return render_template('admin_login.html', error=error)
 
 @app.route('/admin_logout')
 def admin_logout():
     session.pop('is_admin', None)
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('index'))
 
 # Database Admin Panel - View all tables and records
 @app.route('/db_admin')
